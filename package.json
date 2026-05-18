@@ -1,0 +1,9 @@
+{
+  "name": "world-pairs-game",
+  "version": "1.0.0",
+  "description": "World Pairs - A country comparison and quiz game",
+  "main": "world-pairs-game.html",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.3"
+  }
+}
