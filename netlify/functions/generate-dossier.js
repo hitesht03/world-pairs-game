@@ -1,7 +1,4 @@
-const Anthropic = require("@anthropic-ai/sdk");
-
 exports.handler = async (event) => {
-  // Only allow POST requests
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method not allowed" };
   }
@@ -13,10 +10,6 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: "Missing country names" };
     }
 
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
     const prompt = `Generate a comparison dossier for two countries: "${c1}" and "${c2}".
 
 Return ONLY a single valid JSON object (no markdown, no commentary, no code fences) with this EXACT structure:
@@ -24,54 +17,70 @@ Return ONLY a single valid JSON object (no markdown, no commentary, no code fenc
 {
   "country1": {
     "name": "${c1}",
-    "nickname": "a short evocative epithet, e.g. 'Land of the Rising Sun'",
+    "nickname": "a short evocative epithet",
     "capital": "capital city",
-    "population": "approximate population, e.g. '~125 million'",
+    "population": "approximate population",
     "language": "main official language(s)",
     "currency": "currency name",
-    "overview": "2-3 sentence overview of geography, culture, and what makes it distinctive",
-    "funFact": "one surprising or memorable fact"
+    "overview": "2-3 sentence overview",
+    "funFact": "one surprising fact"
   },
-  "country2": { ... same shape for ${c2} ... },
+  "country2": {
+    "name": "${c2}",
+    "nickname": "a short evocative epithet",
+    "capital": "capital city",
+    "population": "approximate population",
+    "language": "main official language(s)",
+    "currency": "currency name",
+    "overview": "2-3 sentence overview",
+    "funFact": "one surprising fact"
+  },
   "relationship": {
-    "summary": "3-4 sentence overview of how these two countries relate to each other today",
-    "benefits": ["specific benefit 1","benefit 2","benefit 3","benefit 4"],
-    "challenges": ["specific challenge 1","challenge 2","challenge 3","challenge 4"]
+    "summary": "3-4 sentence overview of how these two countries relate",
+    "benefits": ["benefit 1","benefit 2","benefit 3","benefit 4"],
+    "challenges": ["challenge 1","challenge 2","challenge 3","challenge 4"]
   },
   "quizzes": {
-    "country1": [5 questions],
-    "country2": [5 questions],
-    "pair": [5 questions]
+    "country1": [
+      {"question":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."}
+    ],
+    "country2": [
+      {"question":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."}
+    ],
+    "pair": [
+      {"question":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."}
+    ]
   }
 }
 
-Generate exactly 5 questions for each of the three quiz sections:
-- "country1": 5 questions ONLY about ${c1}
-- "country2": 5 questions ONLY about ${c2}
-- "pair": 5 questions about both countries together
+Generate exactly 5 questions per quiz section. Be factually accurate. Output ONLY the JSON.`;
 
-Mix difficulty within each section. Be factually accurate. Output ONLY the JSON.`;
-
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 3500,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 3500,
+        messages: [{ role: "user", content: prompt }]
+      })
     });
 
-    let text = response.content
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("API error:", response.status, errText);
+      return { statusCode: 502, body: "API call failed: " + response.status };
+    }
+
+    const apiData = await response.json();
+    let text = apiData.content
       .filter((c) => c.type === "text")
       .map((c) => c.text)
       .join("");
-    text = text
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/, "")
-      .replace(/```\s*$/, "")
-      .trim();
+    text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/```\s*$/, "").trim();
     const a = text.indexOf("{");
     const b = text.lastIndexOf("}");
     if (a >= 0 && b > a) text = text.slice(a, b + 1);
@@ -81,18 +90,13 @@ Mix difficulty within each section. Be factually accurate. Output ONLY the JSON.
     return {
       statusCode: 200,
       body: JSON.stringify(data),
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" }
     };
   } catch (error) {
     console.error("Error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        error: "Failed to generate dossier",
-        message: error.message,
-      }),
+      body: JSON.stringify({ error: "Failed", message: error.message })
     };
   }
 };
