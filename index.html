@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>World Pairs — A Country Comparison Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700;9..144,900&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+<style>
+:root{--paper:#f1e7d0;--land:#e3d4ae;--land-hover:#d4bf85;--ink:#1c2230;--ink-soft:#3a4154;--accent:#8a2a2a;--gold:#a17b32;--sepia:#6f5a3a;--shadow:0 1px 0 rgba(28,34,48,.08),0 12px 30px rgba(28,34,48,.10)}
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
+body{font-family:'EB Garamond',Georgia,serif;background:var(--paper);background-image:radial-gradient(1200px 600px at 80% -10%,rgba(161,123,50,.10),transparent 60%),radial-gradient(900px 500px at -10% 110%,rgba(138,42,42,.07),transparent 60%);color:var(--ink);min-height:100vh;padding:24px 18px 60px;line-height:1.5}
+.wrap{max-width:1200px;margin:0 auto}.masthead{text-align:center;border-top:3px double var(--ink);border-bottom:3px double var(--ink);padding:18px 16px 16px;margin-bottom:24px;position:relative}
+.eyebrow{font-family:'Fraunces',serif;letter-spacing:.42em;text-transform:uppercase;font-size:11px;color:var(--sepia);margin-bottom:8px}
+.masthead h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(34px,6vw,64px);line-height:1;letter-spacing:-.02em}
+.masthead h1 em{font-style:italic;font-weight:500;color:var(--accent)}
+.sub{margin-top:10px;font-style:italic;color:var(--ink-soft);font-size:15px}
+.compass{position:absolute;left:50%;top:-15px;transform:translateX(-50%);width:34px;height:34px;border-radius:50%;background:var(--paper);border:1.5px solid var(--ink);display:grid;place-items:center;font-size:16px}
+.card{background:var(--paper);border:1px solid rgba(28,34,48,.18);box-shadow:var(--shadow);padding:24px;position:relative}
+.card::before,.card::after{content:"";position:absolute;inset:6px;border:1px solid rgba(28,34,48,.12);pointer-events:none}.card::after{inset:10px;border-color:rgba(28,34,48,.06)}.card>*{position:relative}
+.pickbar{display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:center;padding:14px 18px;background:rgba(255,255,255,.3);border:1px solid rgba(28,34,48,.2);margin-bottom:18px}
+@media(max-width:720px){.pickbar{grid-template-columns:1fr;gap:10px}}
+.pick{display:flex;align-items:center;gap:12px;padding:8px 12px;border-left:3px solid transparent;transition:.2s;min-height:54px}
+.pick.filled-1{border-left-color:var(--accent);background:rgba(138,42,42,.05)}.pick.filled-2{border-left-color:var(--gold);background:rgba(161,123,50,.06)}
+.pick .badge{font-family:'Fraunces',serif;font-weight:700;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;background:var(--paper);border:1.5px solid var(--ink);flex-shrink:0}
+.pick.filled-1 .badge{background:var(--accent);color:var(--paper);border-color:var(--accent)}.pick.filled-2 .badge{background:var(--gold);color:var(--paper);border-color:var(--gold)}
+.pick .label{font-family:'Fraunces',serif;font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--sepia)}
+.pick .name{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin-top:1px;line-height:1.1}
+.pick .name.empty{font-weight:400;font-style:italic;color:var(--sepia);font-size:16px}.pick .flag{font-size:24px;line-height:1}.pick .name-wrap{flex:1}
+.btn{font-family:'Fraunces',serif;font-weight:600;font-size:14px;letter-spacing:.22em;text-transform:uppercase;background:var(--ink);color:var(--paper);border:none;padding:14px 28px;cursor:pointer;transition:transform .15s,box-shadow .2s;box-shadow:5px 5px 0 var(--gold);white-space:nowrap}
+.btn:hover:not(:disabled){transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--gold)}.btn:active:not(:disabled){transform:translate(2px,2px);box-shadow:2px 2px 0 var(--gold)}.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--ink);box-shadow:none}.btn.ghost:hover{background:var(--ink);color:var(--paper)}
+.btn.small{padding:8px 14px;font-size:11px;box-shadow:3px 3px 0 var(--gold)}
+.map-wrap{position:relative;background:radial-gradient(ellipse at center,rgba(255,255,255,.4),rgba(232,220,192,.6));border:1px solid rgba(28,34,48,.2);overflow:hidden}
+#worldmap{display:block;width:100%;height:auto;cursor:grab}#worldmap:active{cursor:grabbing}
+.country-shape{fill:var(--land);stroke:var(--ink);stroke-width:0.4;cursor:pointer;transition:fill .14s}.country-shape:hover{fill:var(--land-hover)}
+.country-shape.sel-1{fill:var(--accent)!important}.country-shape.sel-2{fill:var(--gold)!important}
+.tooltip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);padding:6px 12px;font-family:'Fraunces',serif;font-size:14px;font-weight:500;white-space:nowrap;opacity:0;transition:opacity .12s;z-index:30;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+.tooltip.show{opacity:1}.tooltip::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--ink);border-bottom:none}
+.map-controls{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:4px;z-index:20}
+.map-controls button{width:32px;height:32px;background:var(--paper);border:1.5px solid var(--ink);font-family:'Fraunces',serif;font-weight:700;font-size:18px;cursor:pointer;color:var(--ink);transition:.15s}
+.map-controls button:hover{background:var(--ink);color:var(--paper)}
+.map-status{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-style:italic;color:var(--sepia);font-size:18px;text-align:center}
+.tiny-search-row{margin-top:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:0 4px}
+.tiny-search-row .tip{font-style:italic;color:var(--sepia);font-size:14px}
+.combo{position:relative;flex:1;min-width:200px;max-width:340px}
+.combo input{width:100%;font-family:'EB Garamond',serif;font-size:16px;padding:8px 14px;background:rgba(255,255,255,.4);border:none;border-bottom:1.5px solid var(--ink);color:var(--ink);outline:none}
+.combo input:focus{background:rgba(255,255,255,.7)}.combo input::placeholder{color:var(--sepia);font-style:italic;opacity:.7}
+.dropdown{position:absolute;left:0;right:0;top:100%;background:var(--paper);border:1px solid var(--ink);max-height:240px;overflow-y:auto;z-index:50;box-shadow:0 18px 40px rgba(28,34,48,.18);display:none}
+.dropdown.show{display:block}.dropdown div{padding:8px 14px;font-size:16px;cursor:pointer;border-bottom:1px dotted rgba(28,34,48,.15);display:flex;gap:10px;align-items:center}
+.dropdown div:hover{background:rgba(161,123,50,.15)}.dropdown div:last-child{border-bottom:none}
+.dossier-head{text-align:center;margin-bottom:24px;border-bottom:1px solid var(--ink);padding-bottom:18px}
+.dossier-head .small{font-family:'Fraunces',serif;letter-spacing:.3em;text-transform:uppercase;font-size:11px;color:var(--sepia)}
+.dossier-head h2{font-family:'Fraunces',serif;font-weight:700;font-size:clamp(26px,4vw,40px);margin-top:6px}
+.country-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:30px}@media(max-width:780px){.country-grid{grid-template-columns:1fr}}
+.country{border:1px solid rgba(28,34,48,.2);padding:22px;background:rgba(255,255,255,.22)}.country .flag{font-size:60px;line-height:1;margin-bottom:8px}
+.country h3{font-family:'Fraunces',serif;font-weight:700;font-size:30px}.country .nick{font-style:italic;color:var(--sepia);margin-bottom:16px;font-size:15px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0;padding:14px 0;border-top:1px dotted rgba(28,34,48,.3);border-bottom:1px dotted rgba(28,34,48,.3)}
+.stat .k{font-family:'Fraunces',serif;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--sepia);margin-bottom:2px}.stat .v{font-size:16px;font-weight:500}
+.country p{font-size:16px;line-height:1.55;color:var(--ink-soft)}
+.country .fact{margin-top:14px;padding:12px 14px;border-left:3px solid var(--accent);background:rgba(138,42,42,.05);font-style:italic;font-size:15px}
+.relation{border-top:3px double var(--ink);padding-top:26px;margin-top:6px}
+.relation h3{font-family:'Fraunces',serif;font-weight:700;font-size:28px;text-align:center;margin-bottom:8px}
+.relation .lede{text-align:center;font-style:italic;color:var(--ink-soft);font-size:16px;margin-bottom:20px}
+.relation .summary{font-size:17px;line-height:1.7;padding:18px 22px;background:rgba(161,123,50,.08);border-left:3px solid var(--gold);margin-bottom:22px}
+.bc-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}@media(max-width:780px){.bc-grid{grid-template-columns:1fr}}
+.bc{padding:18px;border:1px solid rgba(28,34,48,.2)}.bc h4{font-family:'Fraunces',serif;font-weight:700;font-size:12px;letter-spacing:.28em;text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(28,34,48,.2)}
+.bc.ben h4{color:#2d5a2d}.bc.chl h4{color:var(--accent)}.bc ul{list-style:none}
+.bc li{padding:10px 0 10px 22px;position:relative;font-size:15px;line-height:1.5;border-bottom:1px dotted rgba(28,34,48,.15)}.bc li:last-child{border-bottom:none}
+.bc li::before{position:absolute;left:0;top:9px;font-family:'Fraunces',serif;font-weight:700}
+.bc.ben li::before{content:'+';color:#2d5a2d;font-size:18px}.bc.chl li::before{content:'×';color:var(--accent);font-size:18px}
+.center{display:flex;justify-content:center;gap:14px;margin-top:30px;flex-wrap:wrap}
+.q-head{text-align:center;margin-bottom:24px}.q-head .small{font-family:'Fraunces',serif;letter-spacing:.3em;text-transform:uppercase;font-size:11px;color:var(--sepia)}
+.q-head h2{font-family:'Fraunces',serif;font-weight:700;font-size:clamp(26px,4vw,38px);margin-top:6px}
+.progress{display:flex;gap:6px;justify-content:center;margin:16px 0 28px}.progress span{width:30px;height:4px;background:rgba(28,34,48,.18)}
+.progress span.done{background:var(--gold)}.progress span.current{background:var(--ink)}
+.qbox{padding:0 6px}.qnum{font-family:'Fraunces',serif;font-style:italic;color:var(--sepia);font-size:15px;margin-bottom:10px}
+.qtext{font-family:'Fraunces',serif;font-weight:500;font-size:24px;line-height:1.35;margin-bottom:22px}
+.options{display:grid;gap:10px}
+.option{font-family:'EB Garamond',serif;font-size:17px;text-align:left;padding:14px 18px;background:rgba(255,255,255,.3);border:1.5px solid rgba(28,34,48,.25);cursor:pointer;transition:.15s;display:flex;gap:14px;align-items:center;color:var(--ink)}
+.option:hover:not(:disabled){background:rgba(255,255,255,.6);border-color:var(--ink)}
+.option .lbl{font-family:'Fraunces',serif;font-weight:700;width:26px;height:26px;border:1.5px solid var(--ink);border-radius:50%;display:grid;place-items:center;font-size:12px;flex-shrink:0}
+.option.correct{background:rgba(45,90,45,.15);border-color:#2d5a2d;color:#1a3a1a}.option.correct .lbl{background:#2d5a2d;color:var(--paper);border-color:#2d5a2d}
+.option.wrong{background:rgba(138,42,42,.12);border-color:var(--accent);color:var(--accent)}.option.wrong .lbl{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+.option:disabled{cursor:default}
+.feedback{margin-top:18px;padding:16px 20px;background:rgba(161,123,50,.1);border-left:3px solid var(--gold);font-size:15px;line-height:1.55;display:none}
+.feedback.show{display:block;animation:fadeIn .3s}.feedback strong{font-family:'Fraunces',serif}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.q-nav{display:flex;justify-content:space-between;align-items:center;margin-top:24px;flex-wrap:wrap;gap:12px}
+.results{text-align:center;padding:24px 10px}
+.results .score{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(70px,14vw,140px);line-height:1;color:var(--accent);margin:10px 0}
+.results .score small{font-size:.35em;color:var(--ink-soft);font-weight:400}
+.results h2{font-family:'Fraunces',serif;font-weight:700;font-size:32px;margin-bottom:8px}
+.results .verdict{font-style:italic;color:var(--ink-soft);font-size:19px;margin-bottom:26px}
+.screen{display:none;animation:slideIn .4s ease-out}.screen.active{display:block}
+@keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.error{padding:16px;border:1px solid var(--accent);background:rgba(138,42,42,.08);color:var(--accent);margin-top:16px;text-align:center}
+.hub-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:26px}@media(max-width:780px){.hub-grid{grid-template-columns:1fr}}
+.hub-card{border:1.5px solid rgba(28,34,48,.25);padding:24px 18px;background:rgba(255,255,255,.25);text-align:center;display:flex;flex-direction:column;align-items:center;transition:.2s}
+.hub-card:hover{background:rgba(255,255,255,.5);transform:translateY(-2px);box-shadow:0 10px 24px rgba(28,34,48,.12)}
+.hub-card.done{border-color:var(--gold);background:rgba(161,123,50,.08)}
+.hub-card .flags{font-size:46px;line-height:1;margin-bottom:10px}
+.hub-card h4{font-family:'Fraunces',serif;font-weight:700;font-size:20px;margin-bottom:6px;line-height:1.2}
+.hub-card .meta{font-style:italic;color:var(--sepia);font-size:14px;margin-bottom:14px;min-height:38px}
+.hub-card .badge-score{font-family:'Fraunces',serif;font-size:30px;font-weight:900;color:var(--accent);margin:6px 0;line-height:1}
+.hub-card .badge-score small{font-size:.45em;color:var(--ink-soft);font-weight:400}
+.hub-card .status{margin-top:10px;font-family:'Fraunces',serif;font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--sepia)}
+.hub-card.done .status{color:#2d5a2d}.hub-card button{margin-top:auto}
+.hub-total{text-align:center;padding:16px;border-top:1px solid rgba(28,34,48,.18);border-bottom:1px solid rgba(28,34,48,.18);margin-bottom:26px}
+.hub-total .label{font-family:'Fraunces',serif;letter-spacing:.3em;text-transform:uppercase;font-size:11px;color:var(--sepia);margin-bottom:4px}
+.hub-total .total-score{font-family:'Fraunces',serif;font-weight:900;font-size:42px;color:var(--accent);line-height:1}
+.hub-total .total-score small{font-size:.5em;color:var(--ink-soft);font-weight:400}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="masthead"><div class="compass">✦</div><div class="eyebrow">Volume I · A Game of Geography</div><h1>World <em>Pairs</em></h1><p class="sub">Click any two nations on the map · learn their story · then prove what you know</p></header>
+<section class="screen active" id="screenSelect"><div class="card">
+<div class="pickbar"><div class="pick" id="pick1"><div class="badge">I</div><div class="flag" id="flag1"></div><div class="name-wrap"><div class="label">First Country</div><div class="name empty" id="name1">Click on the map</div></div></div><div class="pick" id="pick2"><div class="badge">II</div><div class="flag" id="flag2"></div><div class="name-wrap"><div class="label">Second Country</div><div class="name empty" id="name2">Click on the map</div></div></div><button class="btn" id="goBtn" disabled>Begin →</button></div>
+<div class="map-wrap"><svg id="worldmap" viewBox="0 0 960 500"></svg><div class="tooltip" id="tooltip"></div><div class="map-controls"><button id="zoomIn">＋</button><button id="zoomOut">−</button><button id="zoomReset">⟲</button></div><div class="map-status" id="mapStatus">Loading the atlas…</div></div>
+<div class="tiny-search-row"><span class="tip">Search:</span><div class="combo"><input type="text" id="tinySearch" placeholder="Type any country…" autocomplete="off"/><div class="dropdown" id="tinyDrop"></div></div><button class="btn small ghost" id="clearBtn">Clear</button></div>
+<div id="selectError"></div></div></section>
+<section class="screen" id="screenInfo"><div class="card"><div class="dossier-head"><div class="small">A Dossier · Two Nations</div><h2 id="infoTitle">—</h2></div><div class="country-grid" id="countryGrid"></div>
+<div class="relation" id="relationSection"><h3>The Pair, Together</h3><p class="lede">how these two nations relate</p><div class="summary" id="relSummary"></div><div class="bc-grid"><div class="bc ben"><h4>Common Ground</h4><ul id="relBenefits"></ul></div><div class="bc chl"><h4>Differences &amp; Challenges</h4><ul id="relChallenges"></ul></div></div></div>
+<div class="center"><button class="btn ghost" id="backBtn">Choose Different Pair</button><button class="btn" id="quizBtn">Take the Quizzes →</button></div></div></section>
+<section class="screen" id="screenQuizHub"><div class="card"><div class="dossier-head"><div class="small">Three Examinations</div><h2 id="hubTitle">—</h2></div>
+<div class="hub-total" id="hubTotal" style="display:none"><div class="label">Running Tally</div><div class="total-score" id="hubTotalScore">0<small>/0</small></div></div>
+<div class="hub-grid" id="hubGrid"></div><div class="center"><button class="btn ghost" id="hubBackBtn">📜 Dossier</button><button class="btn ghost" id="hubNewBtn">New Pair</button></div></div></section>
+<section class="screen" id="screenQuiz"><div class="card"><div class="q-head"><div class="small">An Examination</div><h2 id="quizTitle">—</h2><div class="progress" id="progress"></div></div><div class="qbox" id="qbox"></div></div></section>
+<section class="screen" id="screenResults"><div class="card"><div class="results"><div class="small" id="scoreSubtitle" style="font-family:'Fraunces',serif;letter-spacing:.3em;text-transform:uppercase;font-size:11px;color:var(--sepia)">Verdict</div><div class="score" id="scoreNum">0<small>/0</small></div><h2 id="scoreTitle">—</h2><p class="verdict" id="scoreVerdict">—</p><div class="center"><button class="btn ghost" id="reviewBtn">📜 Dossier</button><button class="btn" id="hubFromResultsBtn">↩ Quizzes</button><button class="btn ghost" id="newGameBtn">New Pair</button></div></div></div></section>
+</div>
+<script>
+// ══════════════════════════════════════════════════════
+// ALL COUNTRIES DATABASE: [capital, popMillions, language, currency, continent]
+// ══════════════════════════════════════════════════════
+const ALL={
+"Afghanistan":["Kabul",40,"Pashto, Dari","Afghani","Asia"],
+"Albania":["Tirana",2.8,"Albanian","Lek","Europe"],
+"Algeria":["Algiers",45,"Arabic","Dinar","Africa"],
+"Andorra":["Andorra la Vella",0.08,"Catalan","Euro","Europe"],
+"Angola":["Luanda",34,"Portuguese","Kwanza","Africa"],
+"Antigua and Barbuda":["St. John's",0.1,"English","East Caribbean Dollar","North America"],
+"Argentina":["Buenos Aires",46,"Spanish","Peso","South America"],
+"Armenia":["Yerevan",3,"Armenian","Dram","Asia"],
+"Australia":["Canberra",26,"English","Australian Dollar","Oceania"],
+"Austria":["Vienna",9,"German","Euro","Europe"],
+"Azerbaijan":["Baku",10,"Azerbaijani","Manat","Asia"],
+"Bahamas":["Nassau",0.4,"English","Bahamian Dollar","North America"],
+"Bahrain":["Manama",1.5,"Arabic","Dinar","Asia"],
+"Bangladesh":["Dhaka",170,"Bengali","Taka","Asia"],
+"Barbados":["Bridgetown",0.3,"English","Barbadian Dollar","North America"],
+"Belarus":["Minsk",9.4,"Belarusian, Russian","Ruble","Europe"],
+"Belgium":["Brussels",11.5,"Dutch, French, German","Euro","Europe"],
+"Belize":["Belmopan",0.4,"English","Belize Dollar","North America"],
+"Benin":["Porto-Novo",13,"French","CFA Franc","Africa"],
+"Bhutan":["Thimphu",0.8,"Dzongkha","Ngultrum","Asia"],
+"Bolivia":["Sucre",12,"Spanish","Boliviano","South America"],
+"Bosnia and Herzegovina":["Sarajevo",3.2,"Bosnian, Croatian, Serbian","Convertible Mark","Europe"],
+"Botswana":["Gaborone",2.4,"English, Setswana","Pula","Africa"],
+"Brazil":["Brasília",214,"Portuguese","Real","South America"],
+"Brunei":["Bandar Seri Begawan",0.45,"Malay","Brunei Dollar","Asia"],
+"Bulgaria":["Sofia",6.9,"Bulgarian","Lev","Europe"],
+"Burkina Faso":["Ouagadougou",22,"French","CFA Franc","Africa"],
+"Burundi":["Gitega",12.5,"Kirundi, French","Burundian Franc","Africa"],
+"Cambodia":["Phnom Penh",17,"Khmer","Riel","Asia"],
+"Cameroon":["Yaoundé",28,"French, English","CFA Franc","Africa"],
+"Canada":["Ottawa",40,"English, French","Canadian Dollar","North America"],
+"Cape Verde":["Praia",0.6,"Portuguese","Escudo","Africa"],
+"Central African Republic":["Bangui",5,"French, Sango","CFA Franc","Africa"],
+"Chad":["N'Djamena",17,"French, Arabic","CFA Franc","Africa"],
+"Chile":["Santiago",19.5,"Spanish","Peso","South America"],
+"China":["Beijing",1400,"Mandarin Chinese","Yuan","Asia"],
+"Colombia":["Bogotá",52,"Spanish","Peso","South America"],
+"Comoros":["Moroni",0.9,"Comorian, Arabic, French","Franc","Africa"],
+"Congo":["Brazzaville",6,"French","CFA Franc","Africa"],
+"Congo (DRC)":["Kinshasa",100,"French","Congolese Franc","Africa"],
+"Costa Rica":["San José",5.2,"Spanish","Colón","North America"],
+"Croatia":["Zagreb",3.9,"Croatian","Euro","Europe"],
+"Cuba":["Havana",11,"Spanish","Peso","North America"],
+"Cyprus":["Nicosia",1.2,"Greek, Turkish","Euro","Europe"],
+"Czech Republic":["Prague",10.7,"Czech","Koruna","Europe"],
+"Denmark":["Copenhagen",5.9,"Danish","Krone","Europe"],
+"Djibouti":["Djibouti City",1,"French, Arabic","Franc","Africa"],
+"Dominica":["Roseau",0.07,"English","East Caribbean Dollar","North America"],
+"Dominican Republic":["Santo Domingo",11,"Spanish","Peso","North America"],
+"Ecuador":["Quito",18,"Spanish","US Dollar","South America"],
+"Egypt":["Cairo",104,"Arabic","Egyptian Pound","Africa"],
+"El Salvador":["San Salvador",6.5,"Spanish","US Dollar","North America"],
+"Equatorial Guinea":["Malabo",1.5,"Spanish, French","CFA Franc","Africa"],
+"Eritrea":["Asmara",3.6,"Tigrinya, Arabic","Nakfa","Africa"],
+"Estonia":["Tallinn",1.3,"Estonian","Euro","Europe"],
+"Eswatini":["Mbabane",1.2,"Swazi, English","Lilangeni","Africa"],
+"Ethiopia":["Addis Ababa",120,"Amharic","Birr","Africa"],
+"Fiji":["Suva",0.9,"English, Fijian","Fijian Dollar","Oceania"],
+"Finland":["Helsinki",5.5,"Finnish, Swedish","Euro","Europe"],
+"France":["Paris",68,"French","Euro","Europe"],
+"Gabon":["Libreville",2.3,"French","CFA Franc","Africa"],
+"Gambia":["Banjul",2.5,"English","Dalasi","Africa"],
+"Georgia":["Tbilisi",3.7,"Georgian","Lari","Asia"],
+"Germany":["Berlin",84,"German","Euro","Europe"],
+"Ghana":["Accra",33,"English","Cedi","Africa"],
+"Greece":["Athens",10.4,"Greek","Euro","Europe"],
+"Grenada":["St. George's",0.11,"English","East Caribbean Dollar","North America"],
+"Guatemala":["Guatemala City",17,"Spanish","Quetzal","North America"],
+"Guinea":["Conakry",13.5,"French","Guinean Franc","Africa"],
+"Guinea-Bissau":["Bissau",2,"Portuguese","CFA Franc","Africa"],
+"Guyana":["Georgetown",0.8,"English","Guyanese Dollar","South America"],
+"Haiti":["Port-au-Prince",11.5,"French, Haitian Creole","Gourde","North America"],
+"Honduras":["Tegucigalpa",10,"Spanish","Lempira","North America"],
+"Hungary":["Budapest",9.7,"Hungarian","Forint","Europe"],
+"Iceland":["Reykjavik",0.37,"Icelandic","Króna","Europe"],
+"India":["New Delhi",1400,"Hindi, English","Rupee","Asia"],
+"Indonesia":["Jakarta",275,"Indonesian","Rupiah","Asia"],
+"Iran":["Tehran",87,"Persian","Rial","Asia"],
+"Iraq":["Baghdad",42,"Arabic, Kurdish","Dinar","Asia"],
+"Ireland":["Dublin",5.1,"English, Irish","Euro","Europe"],
+"Israel":["Jerusalem",9.5,"Hebrew, Arabic","Shekel","Asia"],
+"Italy":["Rome",60,"Italian","Euro","Europe"],
+"Ivory Coast":["Yamoussoukro",28,"French","CFA Franc","Africa"],
+"Jamaica":["Kingston",3,"English","Jamaican Dollar","North America"],
+"Japan":["Tokyo",125,"Japanese","Yen","Asia"],
+"Jordan":["Amman",11,"Arabic","Dinar","Asia"],
+"Kazakhstan":["Astana",19,"Kazakh, Russian","Tenge","Asia"],
+"Kenya":["Nairobi",55,"Swahili, English","Shilling","Africa"],
+"Kiribati":["Tarawa",0.12,"English, Gilbertese","Australian Dollar","Oceania"],
+"Kuwait":["Kuwait City",4.3,"Arabic","Dinar","Asia"],
+"Kyrgyzstan":["Bishkek",6.7,"Kyrgyz, Russian","Som","Asia"],
+"Laos":["Vientiane",7.4,"Lao","Kip","Asia"],
+"Latvia":["Riga",1.9,"Latvian","Euro","Europe"],
+"Lebanon":["Beirut",5.5,"Arabic","Pound","Asia"],
+"Lesotho":["Maseru",2.2,"Sesotho, English","Loti","Africa"],
+"Liberia":["Monrovia",5.2,"English","Liberian Dollar","Africa"],
+"Libya":["Tripoli",7,"Arabic","Dinar","Africa"],
+"Liechtenstein":["Vaduz",0.04,"German","Swiss Franc","Europe"],
+"Lithuania":["Vilnius",2.8,"Lithuanian","Euro","Europe"],
+"Luxembourg":["Luxembourg City",0.65,"Luxembourgish, French, German","Euro","Europe"],
+"Madagascar":["Antananarivo",29,"Malagasy, French","Ariary","Africa"],
+"Malawi":["Lilongwe",20,"English, Chichewa","Kwacha","Africa"],
+"Malaysia":["Kuala Lumpur",33,"Malay","Ringgit","Asia"],
+"Maldives":["Malé",0.5,"Dhivehi","Rufiyaa","Asia"],
+"Mali":["Bamako",22,"French","CFA Franc","Africa"],
+"Malta":["Valletta",0.5,"Maltese, English","Euro","Europe"],
+"Marshall Islands":["Majuro",0.06,"Marshallese, English","US Dollar","Oceania"],
+"Mauritania":["Nouakchott",4.7,"Arabic","Ouguiya","Africa"],
+"Mauritius":["Port Louis",1.3,"English, French, Creole","Rupee","Africa"],
+"Mexico":["Mexico City",130,"Spanish","Peso","North America"],
+"Micronesia":["Palikir",0.11,"English","US Dollar","Oceania"],
+"Moldova":["Chișinău",2.6,"Romanian","Leu","Europe"],
+"Monaco":["Monaco",0.04,"French","Euro","Europe"],
+"Mongolia":["Ulaanbaatar",3.3,"Mongolian","Tugrik","Asia"],
+"Montenegro":["Podgorica",0.62,"Montenegrin","Euro","Europe"],
+"Morocco":["Rabat",37,"Arabic, Berber","Dirham","Africa"],
+"Mozambique":["Maputo",33,"Portuguese","Metical","Africa"],
+"Myanmar":["Naypyidaw",55,"Burmese","Kyat","Asia"],
+"Namibia":["Windhoek",2.5,"English","Namibian Dollar","Africa"],
+"Nauru":["Yaren",0.01,"Nauruan, English","Australian Dollar","Oceania"],
+"Nepal":["Kathmandu",30,"Nepali","Rupee","Asia"],
+"Netherlands":["Amsterdam",17.5,"Dutch","Euro","Europe"],
+"New Zealand":["Wellington",5,"English, Māori","New Zealand Dollar","Oceania"],
+"Nicaragua":["Managua",6.8,"Spanish","Córdoba","North America"],
+"Niger":["Niamey",26,"French","CFA Franc","Africa"],
+"Nigeria":["Abuja",220,"English","Naira","Africa"],
+"North Korea":["Pyongyang",26,"Korean","Won","Asia"],
+"North Macedonia":["Skopje",2,"Macedonian","Denar","Europe"],
+"Norway":["Oslo",5.4,"Norwegian","Krone","Europe"],
+"Oman":["Muscat",5.2,"Arabic","Rial","Asia"],
+"Pakistan":["Islamabad",230,"Urdu, English","Rupee","Asia"],
+"Palau":["Ngerulmud",0.02,"Palauan, English","US Dollar","Oceania"],
+"Palestine":["Ramallah",5.2,"Arabic","Shekel","Asia"],
+"Panama":["Panama City",4.4,"Spanish","Balboa / US Dollar","North America"],
+"Papua New Guinea":["Port Moresby",10,"English, Tok Pisin","Kina","Oceania"],
+"Paraguay":["Asunción",7.2,"Spanish, Guaraní","Guaraní","South America"],
+"Peru":["Lima",33,"Spanish","Sol","South America"],
+"Philippines":["Manila",114,"Filipino, English","Peso","Asia"],
+"Poland":["Warsaw",38,"Polish","Złoty","Europe"],
+"Portugal":["Lisbon",10.3,"Portuguese","Euro","Europe"],
+"Qatar":["Doha",2.9,"Arabic","Riyal","Asia"],
+"Romania":["Bucharest",19,"Romanian","Leu","Europe"],
+"Russia":["Moscow",144,"Russian","Ruble","Europe"],
+"Rwanda":["Kigali",13.5,"Kinyarwanda, French, English","Franc","Africa"],
+"Saint Kitts and Nevis":["Basseterre",0.05,"English","East Caribbean Dollar","North America"],
+"Saint Lucia":["Castries",0.18,"English","East Caribbean Dollar","North America"],
+"Saint Vincent and the Grenadines":["Kingstown",0.11,"English","East Caribbean Dollar","North America"],
+"Samoa":["Apia",0.2,"Samoan, English","Tala","Oceania"],
+"San Marino":["San Marino",0.03,"Italian","Euro","Europe"],
+"São Tomé and Príncipe":["São Tomé",0.22,"Portuguese","Dobra","Africa"],
+"Saudi Arabia":["Riyadh",36,"Arabic","Riyal","Asia"],
+"Senegal":["Dakar",17,"French","CFA Franc","Africa"],
+"Serbia":["Belgrade",6.8,"Serbian","Dinar","Europe"],
+"Seychelles":["Victoria",0.1,"French, English, Creole","Rupee","Africa"],
+"Sierra Leone":["Freetown",8.4,"English","Leone","Africa"],
+"Singapore":["Singapore",5.9,"English, Malay, Mandarin, Tamil","Singapore Dollar","Asia"],
+"Slovakia":["Bratislava",5.5,"Slovak","Euro","Europe"],
+"Slovenia":["Ljubljana",2.1,"Slovenian","Euro","Europe"],
+"Solomon Islands":["Honiara",0.7,"English","Solomon Islands Dollar","Oceania"],
+"Somalia":["Mogadishu",17,"Somali, Arabic","Shilling","Africa"],
+"South Africa":["Pretoria",60,"11 official languages","Rand","Africa"],
+"South Korea":["Seoul",52,"Korean","Won","Asia"],
+"South Sudan":["Juba",11,"English","South Sudanese Pound","Africa"],
+"Spain":["Madrid",47,"Spanish","Euro","Europe"],
+"Sri Lanka":["Sri Jayawardenepura Kotte",22,"Sinhala, Tamil","Rupee","Asia"],
+"Sudan":["Khartoum",45,"Arabic, English","Sudanese Pound","Africa"],
+"Suriname":["Paramaribo",0.6,"Dutch","Surinamese Dollar","South America"],
+"Sweden":["Stockholm",10,"Swedish","Krona","Europe"],
+"Switzerland":["Bern",8.7,"German, French, Italian","Swiss Franc","Europe"],
+"Syria":["Damascus",21,"Arabic","Syrian Pound","Asia"],
+"Taiwan":["Taipei",24,"Mandarin Chinese","New Taiwan Dollar","Asia"],
+"Tajikistan":["Dushanbe",10,"Tajik","Somoni","Asia"],
+"Tanzania":["Dodoma",63,"Swahili, English","Shilling","Africa"],
+"Thailand":["Bangkok",72,"Thai","Baht","Asia"],
+"Timor-Leste":["Dili",1.3,"Portuguese, Tetum","US Dollar","Asia"],
+"Togo":["Lomé",8.5,"French","CFA Franc","Africa"],
+"Tonga":["Nukuʻalofa",0.1,"Tongan, English","Paʻanga","Oceania"],
+"Trinidad and Tobago":["Port of Spain",1.4,"English","Trinidad Dollar","North America"],
+"Tunisia":["Tunis",12,"Arabic","Dinar","Africa"],
+"Turkey":["Ankara",85,"Turkish","Lira","Asia"],
+"Turkmenistan":["Ashgabat",6.3,"Turkmen","Manat","Asia"],
+"Tuvalu":["Funafuti",0.01,"Tuvaluan, English","Australian Dollar","Oceania"],
+"Uganda":["Kampala",47,"English, Swahili","Shilling","Africa"],
+"Ukraine":["Kyiv",44,"Ukrainian","Hryvnia","Europe"],
+"United Arab Emirates":["Abu Dhabi",10,"Arabic","Dirham","Asia"],
+"United Kingdom":["London",67,"English","Pound Sterling","Europe"],
+"United States":["Washington, D.C.",331,"English","US Dollar","North America"],
+"Uruguay":["Montevideo",3.5,"Spanish","Uruguayan Peso","South America"],
+"Uzbekistan":["Tashkent",35,"Uzbek","Sum","Asia"],
+"Vanuatu":["Port Vila",0.3,"English, French, Bislama","Vatu","Oceania"],
+"Vatican City":["Vatican City",0.0008,"Italian, Latin","Euro","Europe"],
+"Venezuela":["Caracas",28,"Spanish","Bolívar","South America"],
+"Vietnam":["Hanoi",100,"Vietnamese","Dong","Asia"],
+"Yemen":["Sana'a",33,"Arabic","Rial","Asia"],
+"Zambia":["Lusaka",20,"English","Kwacha","Africa"],
+"Zimbabwe":["Harare",16,"English, Shona, Ndebele","RTGS Dollar","Africa"]
+};
+
+const COUNTRIES=[["🇦🇫","Afghanistan"],["🇦🇱","Albania"],["🇩🇿","Algeria"],["🇦🇩","Andorra"],["🇦🇴","Angola"],["🇦🇬","Antigua and Barbuda"],["🇦🇷","Argentina"],["🇦🇲","Armenia"],["🇦🇺","Australia"],["🇦🇹","Austria"],["🇦🇿","Azerbaijan"],["🇧🇸","Bahamas"],["🇧🇭","Bahrain"],["🇧🇩","Bangladesh"],["🇧🇧","Barbados"],["🇧🇾","Belarus"],["🇧🇪","Belgium"],["🇧🇿","Belize"],["🇧🇯","Benin"],["🇧🇹","Bhutan"],["🇧🇴","Bolivia"],["🇧🇦","Bosnia and Herzegovina"],["🇧🇼","Botswana"],["🇧🇷","Brazil"],["🇧🇳","Brunei"],["🇧🇬","Bulgaria"],["🇧🇫","Burkina Faso"],["🇧🇮","Burundi"],["🇰🇭","Cambodia"],["🇨🇲","Cameroon"],["🇨🇦","Canada"],["🇨🇻","Cape Verde"],["🇨🇫","Central African Republic"],["🇹🇩","Chad"],["🇨🇱","Chile"],["🇨🇳","China"],["🇨🇴","Colombia"],["🇰🇲","Comoros"],["🇨🇬","Congo"],["🇨🇩","Congo (DRC)"],["🇨🇷","Costa Rica"],["🇭🇷","Croatia"],["🇨🇺","Cuba"],["🇨🇾","Cyprus"],["🇨🇿","Czech Republic"],["🇩🇰","Denmark"],["🇩🇯","Djibouti"],["🇩🇲","Dominica"],["🇩🇴","Dominican Republic"],["🇪🇨","Ecuador"],["🇪🇬","Egypt"],["🇸🇻","El Salvador"],["🇬🇶","Equatorial Guinea"],["🇪🇷","Eritrea"],["🇪🇪","Estonia"],["🇸🇿","Eswatini"],["🇪🇹","Ethiopia"],["🇫🇯","Fiji"],["🇫🇮","Finland"],["🇫🇷","France"],["🇬🇦","Gabon"],["🇬🇲","Gambia"],["🇬🇪","Georgia"],["🇩🇪","Germany"],["🇬🇭","Ghana"],["🇬🇷","Greece"],["🇬🇩","Grenada"],["🇬🇹","Guatemala"],["🇬🇳","Guinea"],["🇬🇼","Guinea-Bissau"],["🇬🇾","Guyana"],["🇭🇹","Haiti"],["🇭🇳","Honduras"],["🇭🇺","Hungary"],["🇮🇸","Iceland"],["🇮🇳","India"],["🇮🇩","Indonesia"],["🇮🇷","Iran"],["🇮🇶","Iraq"],["🇮🇪","Ireland"],["🇮🇱","Israel"],["🇮🇹","Italy"],["🇨🇮","Ivory Coast"],["🇯🇲","Jamaica"],["🇯🇵","Japan"],["🇯🇴","Jordan"],["🇰🇿","Kazakhstan"],["🇰🇪","Kenya"],["🇰🇮","Kiribati"],["🇰🇼","Kuwait"],["🇰🇬","Kyrgyzstan"],["🇱🇦","Laos"],["🇱🇻","Latvia"],["🇱🇧","Lebanon"],["🇱🇸","Lesotho"],["🇱🇷","Liberia"],["🇱🇾","Libya"],["🇱🇮","Liechtenstein"],["🇱🇹","Lithuania"],["🇱🇺","Luxembourg"],["🇲🇬","Madagascar"],["🇲🇼","Malawi"],["🇲🇾","Malaysia"],["🇲🇻","Maldives"],["🇲🇱","Mali"],["🇲🇹","Malta"],["🇲🇭","Marshall Islands"],["🇲🇷","Mauritania"],["🇲🇺","Mauritius"],["🇲🇽","Mexico"],["🇫🇲","Micronesia"],["🇲🇩","Moldova"],["🇲🇨","Monaco"],["🇲🇳","Mongolia"],["🇲🇪","Montenegro"],["🇲🇦","Morocco"],["🇲🇿","Mozambique"],["🇲🇲","Myanmar"],["🇳🇦","Namibia"],["🇳🇷","Nauru"],["🇳🇵","Nepal"],["🇳🇱","Netherlands"],["🇳🇿","New Zealand"],["🇳🇮","Nicaragua"],["🇳🇪","Niger"],["🇳🇬","Nigeria"],["🇰🇵","North Korea"],["🇲🇰","North Macedonia"],["🇳🇴","Norway"],["🇴🇲","Oman"],["🇵🇰","Pakistan"],["🇵🇼","Palau"],["🇵🇸","Palestine"],["🇵🇦","Panama"],["🇵🇬","Papua New Guinea"],["🇵🇾","Paraguay"],["🇵🇪","Peru"],["🇵🇭","Philippines"],["🇵🇱","Poland"],["🇵🇹","Portugal"],["🇶🇦","Qatar"],["🇷🇴","Romania"],["🇷🇺","Russia"],["🇷🇼","Rwanda"],["🇰🇳","Saint Kitts and Nevis"],["🇱🇨","Saint Lucia"],["🇻🇨","Saint Vincent and the Grenadines"],["🇼🇸","Samoa"],["🇸🇲","San Marino"],["🇸🇹","São Tomé and Príncipe"],["🇸🇦","Saudi Arabia"],["🇸🇳","Senegal"],["🇷🇸","Serbia"],["🇸🇨","Seychelles"],["🇸🇱","Sierra Leone"],["🇸🇬","Singapore"],["🇸🇰","Slovakia"],["🇸🇮","Slovenia"],["🇸🇧","Solomon Islands"],["🇸🇴","Somalia"],["🇿🇦","South Africa"],["🇰🇷","South Korea"],["🇸🇸","South Sudan"],["🇪🇸","Spain"],["🇱🇰","Sri Lanka"],["🇸🇩","Sudan"],["🇸🇷","Suriname"],["🇸🇪","Sweden"],["🇨🇭","Switzerland"],["🇸🇾","Syria"],["🇹🇼","Taiwan"],["🇹🇯","Tajikistan"],["🇹🇿","Tanzania"],["🇹🇭","Thailand"],["🇹🇱","Timor-Leste"],["🇹🇬","Togo"],["🇹🇴","Tonga"],["🇹🇹","Trinidad and Tobago"],["🇹🇳","Tunisia"],["🇹🇷","Turkey"],["🇹🇲","Turkmenistan"],["🇹🇻","Tuvalu"],["🇺🇬","Uganda"],["🇺🇦","Ukraine"],["🇦🇪","United Arab Emirates"],["🇬🇧","United Kingdom"],["🇺🇸","United States"],["🇺🇾","Uruguay"],["🇺🇿","Uzbekistan"],["🇻🇺","Vanuatu"],["🇻🇦","Vatican City"],["🇻🇪","Venezuela"],["🇻🇳","Vietnam"],["🇾🇪","Yemen"],["🇿🇲","Zambia"],["🇿🇼","Zimbabwe"]];
+
+const NAME_ALIASES={"United States of America":"United States","Dem. Rep. Congo":"Congo (DRC)","Dem. Rep. Korea":"North Korea","Dominican Rep.":"Dominican Republic","Eq. Guinea":"Equatorial Guinea","Central African Rep.":"Central African Republic","Bosnia and Herz.":"Bosnia and Herzegovina","Solomon Is.":"Solomon Islands","S. Sudan":"South Sudan","Czechia":"Czech Republic","Côte d'Ivoire":"Ivory Coast","eSwatini":"Eswatini","Swaziland":"Eswatini","Macedonia":"North Macedonia","Lao PDR":"Laos","Cabo Verde":"Cape Verde","East Timor":"Timor-Leste","Korea":"South Korea","W. Sahara":"Western Sahara"};
+const FLAG_BY_NAME={};COUNTRIES.forEach(([f,n])=>FLAG_BY_NAME[n]=f);
+function displayName(n){return NAME_ALIASES[n]||n}
+function flagFor(n){return FLAG_BY_NAME[displayName(n)]||""}
+
+// ══════════════════════════════════════════════════════
+// AUTO-QUIZ GENERATOR — works for ANY country pair
+// ══════════════════════════════════════════════════════
+function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function seededRandom(seed){let s=seed;return()=>{s=(s*16807)%2147483647;return(s-1)/2147483646}}
+
+function getWrongAnswers(correct,field,count,exclude){
+  const all=Object.entries(ALL).filter(([n])=>n!==exclude).map(([n,d])=>field==="capital"?d[0]:field==="language"?d[2]:field==="currency"?d[3]:d[4]);
+  const unique=[...new Set(all)].filter(v=>v!==correct);
+  return shuffle(unique).slice(0,count);
+}
+
+function makeQ(question,correct,wrongs,explanation){
+  const opts=shuffle([correct,...wrongs.slice(0,3)]);
+  return{question,options:opts,correct:opts.indexOf(correct),explanation};
+}
+
+function generateCountryQuiz(name){
+  const d=ALL[name];if(!d)return[];
+  const[cap,pop,lang,cur,cont]=d;
+  const qs=[];
+  qs.push(makeQ(`What is the capital of ${name}?`,cap,getWrongAnswers(cap,"capital",3,name),`${cap} is the capital of ${name}.`));
+  qs.push(makeQ(`What is the primary language spoken in ${name}?`,lang,getWrongAnswers(lang,"language",3,name),`${lang} is spoken in ${name}.`));
+  qs.push(makeQ(`What currency is used in ${name}?`,cur,getWrongAnswers(cur,"currency",3,name),`${name} uses the ${cur}.`));
+  qs.push(makeQ(`Which continent is ${name} located in?`,cont,shuffle(["Africa","Asia","Europe","North America","South America","Oceania"].filter(c=>c!==cont)).slice(0,3),`${name} is located in ${cont}.`));
+  const popStr=pop>=1?`~${Math.round(pop)} million`:`~${Math.round(pop*1000)} thousand`;
+  const wrongPops=shuffle([pop*0.1,pop*0.4,pop*3,pop*8].map(p=>p>=1?`~${Math.round(p)} million`:`~${Math.round(p*1000)} thousand`)).slice(0,3);
+  qs.push(makeQ(`What is the approximate population of ${name}?`,popStr,wrongPops,`${name} has a population of approximately ${popStr} people.`));
+  return qs;
+}
+
+function generatePairQuiz(n1,n2){
+  const d1=ALL[n1],d2=ALL[n2];if(!d1||!d2)return[];
+  const qs=[];
+  // Q1: which has larger population
+  const bigger=d1[1]>d2[1]?n1:n2;
+  qs.push(makeQ(`Which country has the larger population?`,bigger,[d1[1]>d2[1]?n2:n1,"They are roughly equal","Neither is very populous"].slice(0,3),`${bigger} has the larger population.`));
+  // Q2: capital of country1
+  qs.push(makeQ(`What is the capital of ${n1}?`,d1[0],getWrongAnswers(d1[0],"capital",3,n1),`${d1[0]} is the capital of ${n1}.`));
+  // Q3: capital of country2
+  qs.push(makeQ(`What is the capital of ${n2}?`,d2[0],getWrongAnswers(d2[0],"capital",3,n2),`${d2[0]} is the capital of ${n2}.`));
+  // Q4: continent of one
+  qs.push(makeQ(`Which continent is ${n1} in?`,d1[4],shuffle(["Africa","Asia","Europe","North America","South America","Oceania"].filter(c=>c!==d1[4])).slice(0,3),`${n1} is in ${d1[4]}.`));
+  // Q5: language
+  qs.push(makeQ(`What language is primarily spoken in ${n2}?`,d2[2],getWrongAnswers(d2[2],"language",3,n2),`${d2[2]} is spoken in ${n2}.`));
+  return qs;
+}
+
+function generateRelationship(n1,n2){
+  const d1=ALL[n1],d2=ALL[n2];
+  const sameCont=d1[4]===d2[4];
+  const sameLang=d1[2]===d2[2];
+  let summary=sameCont?
+    `${n1} and ${n2} are both located in ${d1[4]}. `:`${n1} (${d1[4]}) and ${n2} (${d2[4]}) represent a cross-continental pairing. `;
+  summary+=sameLang?`They share ${d1[2]} as a primary language, which creates natural cultural and diplomatic bridges. `:`They speak different primary languages — ${d1[2]} and ${d2[2]} respectively — reflecting distinct cultural traditions. `;
+  const p1=d1[1],p2=d2[1];
+  summary+=p1>p2*5?`${n1} is significantly larger in population (~${Math.round(p1)}M vs ~${Math.round(p2)}M). `
+    :p2>p1*5?`${n2} is significantly larger in population (~${Math.round(p2)}M vs ~${Math.round(p1)}M). `
+    :`They have comparable populations (~${Math.round(p1)}M and ~${Math.round(p2)}M). `;
+  summary+="Like all nations, their relationship involves both shared interests and distinct challenges.";
+  const benefits=[];
+  if(sameCont)benefits.push(`Both are located in ${d1[4]}, enabling regional cooperation and trade`);
+  if(sameLang)benefits.push(`Shared language (${d1[2]}) facilitates communication, cultural exchange, and diplomacy`);
+  benefits.push(`Potential for bilateral trade — ${n1}'s economy can complement ${n2}'s strengths`);
+  benefits.push("Cultural exchange through tourism, education, and people-to-people ties");
+  if(!sameCont)benefits.push("Cross-continental ties can diversify both nations' diplomatic portfolios");
+  if(!sameLang)benefits.push("Language differences drive demand for translation and cross-cultural education");
+  const challenges=[];
+  if(!sameCont)challenges.push(`Geographic distance between ${d1[4]} and ${d2[4]} limits direct interaction`);
+  if(!sameLang)challenges.push(`Language barrier (${d1[2]} vs ${d2[2]}) complicates direct diplomacy and trade`);
+  challenges.push("Different political and economic systems may create friction on global issues");
+  challenges.push("Competing interests in international organizations and trade negotiations");
+  if(sameCont)challenges.push("Regional competition for influence, investment, and leadership");
+  if(d1[3]!==d2[3])challenges.push(`Different currencies (${d1[3]} vs ${d2[3]}) add complexity to trade`);
+  return{summary,benefits:benefits.slice(0,4),challenges:challenges.slice(0,4)};
+}
+
+// ══════════════════════════════════════════════════════
+// BUILD PAIR DATA — works for ANY two countries
+// ══════════════════════════════════════════════════════
+function fetchPairData(c1,c2){
+  const d1=ALL[c1],d2=ALL[c2];
+  if(!d1||!d2)throw new Error("Country data not available");
+  const rel=generateRelationship(c1,c2);
+  return{
+    country1:{name:c1,nickname:`Nation of ${d1[4]}`,capital:d1[0],population:d1[1]>=1?`~${Math.round(d1[1])} million`:`~${Math.round(d1[1]*1000)} thousand`,language:d1[2],currency:d1[3],overview:`${c1} is located in ${d1[4]} with its capital at ${d1[0]}. The primary language is ${d1[2]} and the currency is the ${d1[3]}.`,funFact:`${c1} has a population of approximately ${d1[1]>=1?Math.round(d1[1])+" million":Math.round(d1[1]*1000)+" thousand"} people.`},
+    country2:{name:c2,nickname:`Nation of ${d2[4]}`,capital:d2[0],population:d2[1]>=1?`~${Math.round(d2[1])} million`:`~${Math.round(d2[1]*1000)} thousand`,language:d2[2],currency:d2[3],overview:`${c2} is located in ${d2[4]} with its capital at ${d2[0]}. The primary language is ${d2[2]} and the currency is the ${d2[3]}.`,funFact:`${c2} has a population of approximately ${d2[1]>=1?Math.round(d2[1])+" million":Math.round(d2[1]*1000)+" thousand"} people.`},
+    relationship:rel,
+    quizzes:{country1:generateCountryQuiz(c1),country2:generateCountryQuiz(c2),pair:generatePairQuiz(c1,c2)}
+  };
+}
+
+// ══════════════════════════════════════════════════════
+// STATE + SCREENS
+// ══════════════════════════════════════════════════════
+const state={c1:null,c2:null,data:null,currentQuiz:null,scores:{c1:null,c2:null,pair:null},qIndex:0,qAnswers:[],score:0};
+function getQuizArray(){return state.data.quizzes[state.currentQuiz==="c1"?"country1":state.currentQuiz==="c2"?"country2":"pair"]}
+function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById(id).classList.add("active");window.scrollTo({top:0,behavior:"smooth"})}
+
+// ═══ MAP ═══
+const svg=d3.select("#worldmap");const tooltip=document.getElementById("tooltip");const mapWrap=document.querySelector(".map-wrap");
+const projection=d3.geoNaturalEarth1().scale(180).translate([480,240]);const pathGen=d3.geoPath(projection);
+const g=svg.append("g");let countryPaths=null;
+const zoom=d3.zoom().scaleExtent([1,8]).on("zoom",e=>g.attr("transform",e.transform));svg.call(zoom);
+document.getElementById("zoomIn").addEventListener("click",()=>svg.transition().call(zoom.scaleBy,1.6));
+document.getElementById("zoomOut").addEventListener("click",()=>svg.transition().call(zoom.scaleBy,1/1.6));
+document.getElementById("zoomReset").addEventListener("click",()=>svg.transition().call(zoom.transform,d3.zoomIdentity));
+
+d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(world=>{
+  const countries=topojson.feature(world,world.objects.countries).features.filter(d=>d.properties.name!=="Antarctica");
+  countryPaths=g.selectAll("path.country-shape").data(countries).join("path").attr("class","country-shape")
+    .attr("d",pathGen).attr("data-name",d=>displayName(d.properties.name))
+    .on("mouseover",function(e,d){const name=displayName(d.properties.name);tooltip.innerHTML=`${flagFor(name)||""} ${name}`;tooltip.classList.add("show")})
+    .on("mousemove",function(e){const r=mapWrap.getBoundingClientRect();tooltip.style.left=(e.clientX-r.left)+"px";tooltip.style.top=(e.clientY-r.top-36)+"px";tooltip.style.transform="translateX(-50%)"})
+    .on("mouseout",()=>tooltip.classList.remove("show"))
+    .on("click",function(e,d){e.stopPropagation();pickCountry(displayName(d.properties.name))});
+  document.getElementById("mapStatus").style.display="none";
+}).catch(()=>{document.getElementById("mapStatus").textContent="Map could not load. Use search."});
+
+function pickCountry(name){
+  if(!ALL[name]){document.getElementById("selectError").innerHTML=`<div class="error">"${name}" is not in the database.</div>`;return}
+  if(state.c1&&state.c1.name===name){state.c1=null;refreshPicks();return}
+  if(state.c2&&state.c2.name===name){state.c2=null;refreshPicks();return}
+  const entry={name,flag:flagFor(name)};
+  if(!state.c1)state.c1=entry;else if(!state.c2)state.c2=entry;else state.c2=entry;
+  refreshPicks();
+}
+
+function refreshPicks(){
+  const p1=document.getElementById("pick1"),p2=document.getElementById("pick2");
+  if(state.c1){p1.classList.add("filled-1");document.getElementById("flag1").textContent=state.c1.flag;document.getElementById("name1").textContent=state.c1.name;document.getElementById("name1").classList.remove("empty")}
+  else{p1.classList.remove("filled-1");document.getElementById("flag1").textContent="";document.getElementById("name1").textContent="Click on the map";document.getElementById("name1").classList.add("empty")}
+  if(state.c2){p2.classList.add("filled-2");document.getElementById("flag2").textContent=state.c2.flag;document.getElementById("name2").textContent=state.c2.name;document.getElementById("name2").classList.remove("empty")}
+  else{p2.classList.remove("filled-2");document.getElementById("flag2").textContent="";document.getElementById("name2").textContent="Click on the map";document.getElementById("name2").classList.add("empty")}
+  if(countryPaths){countryPaths.classed("sel-1",d=>state.c1&&displayName(d.properties.name)===state.c1.name);countryPaths.classed("sel-2",d=>state.c2&&displayName(d.properties.name)===state.c2.name)}
+  const err=document.getElementById("selectError");err.innerHTML="";
+  let ready=state.c1&&state.c2&&state.c1.name!==state.c2.name;
+  if(state.c1&&state.c2&&state.c1.name===state.c2.name){err.innerHTML=`<div class="error">Pick two different countries.</div>`;ready=false}
+  document.getElementById("goBtn").disabled=!ready;
+}
+
+document.getElementById("clearBtn").addEventListener("click",()=>{state.c1=null;state.c2=null;refreshPicks()});
+
+// ═══ SEARCH ═══
+(function(){const input=document.getElementById("tinySearch");const drop=document.getElementById("tinyDrop");
+function render(f){drop.innerHTML="";f=(f||"").toLowerCase();const items=COUNTRIES.filter(c=>c[1].toLowerCase().includes(f)&&ALL[c[1]]).slice(0,30);
+items.forEach(c=>{const d=document.createElement("div");d.innerHTML=`<span style="font-size:20px">${c[0]}</span> ${c[1]}`;
+d.addEventListener("mousedown",e=>{e.preventDefault();pickCountry(c[1]);input.value="";drop.classList.remove("show")});drop.appendChild(d)});
+if(!items.length)drop.innerHTML=`<div style="color:var(--sepia);font-style:italic">No match</div>`}
+input.addEventListener("focus",()=>{render(input.value);drop.classList.add("show")});
+input.addEventListener("input",()=>{render(input.value);drop.classList.add("show")});
+input.addEventListener("blur",()=>setTimeout(()=>drop.classList.remove("show"),150))})();
+
+// ═══ BEGIN ═══
+document.getElementById("goBtn").addEventListener("click",()=>{
+  try{state.data=fetchPairData(state.c1.name,state.c2.name);state.scores={c1:null,c2:null,pair:null};renderInfo();show("screenInfo")}
+  catch(e){document.getElementById("selectError").innerHTML=`<div class="error">${e.message}</div>`}
+});
+
+function renderInfo(){
+  const d=state.data,f1=state.c1.flag||"🏳",f2=state.c2.flag||"🏳";
+  document.getElementById("infoTitle").innerHTML=`${f1} ${d.country1.name} <em style="color:var(--accent)">&amp;</em> ${f2} ${d.country2.name}`;
+  const grid=document.getElementById("countryGrid");grid.innerHTML="";
+  [[f1,d.country1],[f2,d.country2]].forEach(([flag,c])=>{const div=document.createElement("div");div.className="country";
+  div.innerHTML=`<div class="flag">${flag}</div><h3>${c.name}</h3><div class="nick">"${c.nickname}"</div>
+  <div class="stats"><div class="stat"><div class="k">Capital</div><div class="v">${c.capital}</div></div><div class="stat"><div class="k">Population</div><div class="v">${c.population}</div></div><div class="stat"><div class="k">Language</div><div class="v">${c.language}</div></div><div class="stat"><div class="k">Currency</div><div class="v">${c.currency}</div></div></div>
+  <p>${c.overview}</p><div class="fact"><strong style="font-family:'Fraunces',serif">Did you know — </strong>${c.funFact}</div>`;grid.appendChild(div)});
+  document.getElementById("relSummary").textContent=d.relationship.summary;
+  document.getElementById("relBenefits").innerHTML=d.relationship.benefits.map(b=>`<li>${b}</li>`).join("");
+  document.getElementById("relChallenges").innerHTML=d.relationship.challenges.map(c=>`<li>${c}</li>`).join("");
+}
+
+document.getElementById("backBtn").addEventListener("click",()=>show("screenSelect"));
+document.getElementById("quizBtn").addEventListener("click",()=>{renderQuizHub();show("screenQuizHub")});
+
+function renderQuizHub(){
+  const d=state.data,f1=state.c1.flag||"🏳",f2=state.c2.flag||"🏳";
+  document.getElementById("hubTitle").innerHTML=`${f1} ${d.country1.name} <em style="color:var(--accent)">&amp;</em> ${f2} ${d.country2.name}`;
+  const taken=Object.entries(state.scores).filter(([,s])=>s!==null);const earned=taken.reduce((a,[,s])=>a+s,0);
+  const totalEl=document.getElementById("hubTotal");
+  if(taken.length>0){totalEl.style.display="block";document.getElementById("hubTotalScore").innerHTML=`${earned}<small>/${taken.length*5}</small>`}else totalEl.style.display="none";
+  const cards=[{key:"c1",flags:f1,title:`Quiz: ${d.country1.name}`,meta:"5 questions"},{key:"c2",flags:f2,title:`Quiz: ${d.country2.name}`,meta:"5 questions"},{key:"pair",flags:`${f1} ${f2}`,title:"Quiz: The Pair",meta:"5 comparison questions"}];
+  const grid=document.getElementById("hubGrid");grid.innerHTML="";
+  cards.forEach(c=>{const score=state.scores[c.key];const done=score!==null;
+  const div=document.createElement("div");div.className="hub-card"+(done?" done":"");
+  div.innerHTML=`<div class="flags">${c.flags}</div><h4>${c.title}</h4><div class="meta">${c.meta}</div>
+  ${done?`<div class="badge-score">${score}<small>/5</small></div>`:""}
+  <button class="btn small">${done?"Retake →":"Begin →"}</button>
+  <div class="status">${done?"Completed":"Not yet taken"}</div>`;
+  div.querySelector("button").addEventListener("click",()=>{state.currentQuiz=c.key;state.qIndex=0;state.qAnswers=[];state.score=0;renderQuiz();show("screenQuiz")});
+  grid.appendChild(div)});
+}
+document.getElementById("hubBackBtn").addEventListener("click",()=>show("screenInfo"));
+document.getElementById("hubNewBtn").addEventListener("click",()=>{state.c1=null;state.c2=null;refreshPicks();show("screenSelect")});
+
+function renderQuiz(){
+  const d=state.data,quiz=getQuizArray(),f1=state.c1.flag||"🏳",f2=state.c2.flag||"🏳";
+  document.getElementById("quizTitle").innerHTML=state.currentQuiz==="c1"?`${f1} ${d.country1.name}`:state.currentQuiz==="c2"?`${f2} ${d.country2.name}`:`${f1}${f2} The Pair`;
+  const prog=document.getElementById("progress");prog.innerHTML="";quiz.forEach((_,i)=>{const s=document.createElement("span");if(i<state.qIndex)s.classList.add("done");else if(i===state.qIndex)s.classList.add("current");prog.appendChild(s)});
+  const q=quiz[state.qIndex],box=document.getElementById("qbox");
+  box.innerHTML=`<div class="qnum">Question ${state.qIndex+1} of ${quiz.length}</div><div class="qtext">${q.question}</div><div class="options" id="opts"></div><div class="feedback" id="fb"></div>
+  <div class="q-nav"><button class="btn ghost" id="quitQuiz">↩ Back</button><button class="btn" id="nextBtn" style="display:none">${state.qIndex===quiz.length-1?"See Score →":"Next →"}</button></div>`;
+  const opts=document.getElementById("opts");["A","B","C","D"].forEach((letter,i)=>{if(!q.options[i])return;const b=document.createElement("button");b.className="option";b.innerHTML=`<span class="lbl">${letter}</span><span>${q.options[i]}</span>`;b.addEventListener("click",()=>answerQuestion(i));opts.appendChild(b)});
+  document.getElementById("quitQuiz").addEventListener("click",()=>{renderQuizHub();show("screenQuizHub")});
+  document.getElementById("nextBtn").addEventListener("click",()=>{state.qIndex++;if(state.qIndex>=quiz.length)showResults();else renderQuiz()});
+}
+
+function answerQuestion(chosen){
+  const q=getQuizArray()[state.qIndex];
+  document.querySelectorAll("#opts .option").forEach((b,i)=>{b.disabled=true;if(i===q.correct)b.classList.add("correct");else if(i===chosen)b.classList.add("wrong")});
+  if(chosen===q.correct)state.score++;
+  const fb=document.getElementById("fb");fb.innerHTML=`<strong>${chosen===q.correct?"Correct.":"Not quite."}</strong> ${q.explanation}`;fb.classList.add("show");
+  document.getElementById("nextBtn").style.display="inline-block";
+}
+
+function showResults(){
+  const quiz=getQuizArray(),total=quiz.length;state.scores[state.currentQuiz]=state.score;
+  document.getElementById("scoreNum").innerHTML=`${state.score}<small>/${total}</small>`;
+  document.getElementById("scoreSubtitle").textContent=state.currentQuiz==="c1"?state.data.country1.name:state.currentQuiz==="c2"?state.data.country2.name:"The Pair";
+  const pct=state.score/total;let title,verdict;
+  if(pct===1){title="Flawless.";verdict="The atlas bows to you."}
+  else if(pct>=.8){title="Sharply Done.";verdict="A scholar's showing."}
+  else if(pct>=.6){title="Solid.";verdict="A curious wanderer."}
+  else{title="Keep Exploring.";verdict="Every voyage begins somewhere."}
+  const allDone=Object.values(state.scores).every(s=>s!==null);
+  if(allDone){const g=Object.values(state.scores).reduce((a,b)=>a+b,0);title=`Grand Total: ${g}/15`;verdict=g>=12?"Outstanding!":g>=9?"Well done!":"The atlas always teaches."}
+  document.getElementById("scoreTitle").textContent=title;document.getElementById("scoreVerdict").textContent=verdict;show("screenResults");
+}
+
+document.getElementById("reviewBtn").addEventListener("click",()=>show("screenInfo"));
+document.getElementById("hubFromResultsBtn").addEventListener("click",()=>{renderQuizHub();show("screenQuizHub")});
+document.getElementById("newGameBtn").addEventListener("click",()=>{state.c1=null;state.c2=null;refreshPicks();show("screenSelect")});
+refreshPicks();
+</script>
+</body>
+</html>
